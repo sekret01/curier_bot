@@ -6,12 +6,13 @@ from aiogram import F
 import time
 import pickle
 import os
+from config import TOKEN
 
 
-rus_lan = ["Время по плану", "Фактическое время", "Часов за смену", "Примерная зп", "Заказы", "Время", "Плата"]
-eng_lan = ["plan time", "fact time", "all fact time", "payment", "orders", "time", "pay"]
+rus_lan = ["Время по плану", "Фактическое время", "Время по плану", "Часов за смену", "Примерная зп", "Заказы", "Время", "Плата"]
+eng_lan = ["plan time", "fact time", "all fact time", "all plan time", "payment", "orders", "time", "pay"]
 
-token = "6859830642:AAGLGrr3O8i9Sg4KvPVB9ovH2S06KProWag"
+token = TOKEN
 chat_id = ""
 registrate_shift = False
 registrate_order = False
@@ -33,9 +34,8 @@ btn_add_order = KeyboardButton(text="Новый заказ")
 keyboard_work_shift = ReplyKeyboardMarkup(keyboard=[[btn_end_shift], [btn_add_order]], resize_keyboard=True)
 
 
-def save_data(data):
-    print("saving")
-
+def save_data(data) -> None:
+    """сохранение статистики в файлы data.pickle и data.txt"""
     text = f""
 
     for keys, val in data.items():
@@ -59,27 +59,76 @@ def save_data(data):
         file.write(str(text))
 
 
-def read_data():
+def read_data() -> dict:
+    """чтение сохраненных файлов для получения данных. При их отсутствии создаются новые"""
     if not os.path.exists("./data.pickle"):
         new_file = open("data.pickle", "w")
         new_file.close()
         return {}
-    with open("data.pickle", "rb") as f:
-        data = pickle.load(f)
-        return data
+    try:
+        with open("data.pickle", "rb") as f:
+            data = pickle.load(f)
+            return data
+    except EOFError:
+        return {}
+
+
+def see_static() -> tuple:
+    """Просмотр статистики (смена - отработано часов - заработано руб)"""
+    text = ""
+    summa = 0
+    hours = 0
+    for num_sift, val_shift in shifts.items():
+        text += f"{num_sift}   >  {val_shift["all plan time"]} ч  >   {val_shift["payment"]} р\n"
+        summa += val_shift["payment"]
+        hours += val_shift["all plan time"]
+    summa_text = f"Всего:\n{summa} руб\n{hours} ч"
+    return text, summa_text
 
 
 @dp.message(Command(commands=['start']))
 async def start(message: Message):
-    # print(time.localtime(time.time()))
     await message.answer("Это бот созданный для помощи отслеживания работы\n"
                          "Для более полной информации вызовите команду /help",
                          reply_markup=keyboard_add_shift)
 
 
 @dp.message(Command(commands=["help"]))
-async def help(message: Message):
-    await message.answer("Тут будет описание")
+async def helping(message: Message):
+    await message.answer("Действия:\n\n"
+                         "Добавить смену  ->\n"
+                         "Начать смену  ->\n"
+                         "Добавлять по закакзы (номер и сумму выплаты)  ->\n"
+                         "Закончить смену\n\n"
+                         "Все сохранения происходят автоматически")
+    await message.answer("Команды:\n"
+                         "/stat - показать статистику\n"
+                         "/clear - очистить данные\n")
+
+
+@dp.message(Command(commands=["clear"]))
+async def clear_data(message: Message):
+    global shifts
+    await message.answer("Удаление данных...")
+    try:
+        with open("data.pickle", "w"):
+            pass
+        with open("data.txt", "w"):
+            pass
+        shifts = {}
+        await message.answer("Файлы были удалены")
+    except Exception as e:
+        await message.answer("Файлов сохранения нет")
+
+
+@dp.message(Command(commands=['stat']))
+async def start(message: Message):
+    if shifts:
+        statistic = see_static()
+        await message.answer(text=statistic[0])
+        await message.answer(text=statistic[1])
+    else:
+        await message.answer("Даные отсутствуют")
 
 
 @dp.message(F.text.lower() == "добавить смену")
@@ -90,26 +139,21 @@ async def work_with_shift(message: Message):
                          "Время должно именть такой вид:\n"
                          "12 15")
     shift_time = message.text
-    print(shift_time)
 
 
 @dp.message(F.text == "Начать смену")
 async def start_shift(message: Message):
     global shift
     if shift.exsisting:
-        print("Start shift")
 
         shift.start_shift()
         fact_start = time.localtime(time.time())
         shift.take_fact_start((fact_start[3], fact_start[4]))
 
-        print(fact_start[3], fact_start[4])
         await message.answer(f"Смена {shift.plan_start_time}:00 - {shift.plan_end_time}:00 началась в "
                              f"{shift.fact_start_time[0]}:{shift.fact_start_time[1]}", reply_markup=keyboard_work_shift)
 
     else:
-        print("shift is`t exsist")
-
         await message.answer("Сначала зарегситрируйте смену")
 
 
@@ -124,7 +168,6 @@ async def end_shift(message: Message):
     shift.end_shift()
     structing_shift = shift.struct_shift()
     await message.answer("Смена закончена!", reply_markup=keyboard_add_shift)
-    # print(structing_shift)
 
     date_now = {"day": time.localtime(time.time())[2], "month": time.localtime(time.time())[1]}
     shifts.update([(F"{date_now["day"]}.{date_now["month"]}  {structing_shift["plan time"]}", structing_shift)])
