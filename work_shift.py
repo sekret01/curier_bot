@@ -2,9 +2,25 @@ from order import Order
 
 
 class Shift:
-    """Описание смены"""
+    """
+    Описание смены
 
-    active = None
+    В класс используются следующие данные:
+
+    - плановое начало смены
+    - плановый конец смены
+    - фактическое начало смены
+    - фактический конец смены
+    - количество заработка за смену
+    - информация о заказах (см в классе Order)
+    - плановое рабочее время
+    - фактическое рабочее время
+    - состояние активности
+
+    Все данные при сохранении передаются в словарь
+    """
+
+    active = False
     exsisting = False
     plan_start_time = None
     plan_end_time = None
@@ -64,6 +80,7 @@ class Shift:
         self.active = False
 
     def count_all_time(self, start, end):
+        """подсчет затраченного времени по факту"""
         start_sec = start[0]*60*60 + start[1]*60
         end_sec = end[0]*60*60 + end[1]*60
         all_sec = end_sec - start_sec
@@ -72,17 +89,14 @@ class Shift:
         self.all_time = (hours, minuts)
 
     def count_all_plan_time(self, start, end):
-        start_sec = start[0] * 60 * 60 + start[1] * 60
-        end_sec = end[0] * 60 * 60 + end[1] * 60
-        all_sec = end_sec - start_sec
-        hours = all_sec // 60 // 60
-        minuts = (all_sec - hours * 60 * 60) // 60
-        self.all_plan_time = (hours, minuts)
+        """подсчет планового затраченного времени"""
+        hours = end - start
+        self.all_plan_time = hours
 
     def struct_shift(self):
         return {"plan time": f"{self.plan_start_time}:00 - {self.plan_end_time}:00",
                 "fact time": f"{self.fact_start_time[0]}:{self.fact_start_time[1]} - {self.fact_end_time[0]}:{self.fact_end_time[1]}",
-                "all fact time": f"{self.all_time[0]} часов, {self.all_time[1]} минут",
-                "all plan time": f"{self.all_plan_time[0]} часов, {self.all_plan_time[1]} минут",
+                "all fact time": f"{self.all_time[0]} ч, {self.all_time[1]} мин",
+                "all plan time": self.all_plan_time,
                 "payment": self.payment,
                 "orders": self.orders}
